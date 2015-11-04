@@ -17,10 +17,16 @@
 		<link rel="stylesheet" href="https://cdn.jsdelivr.net/reveal.js/3.0.0/css/reveal.css">
 		<link rel="stylesheet" href="https://cdn.jsdelivr.net/reveal.js/3.0.0/css/theme/black.css" id="theme">
 
-		<!--<script src="https://rawgit.com/azdle/dump.js/master/src/dump-min.js"></script>-->
-
 		<!-- Local Style Overrides -->
 		<style type="text/css">
+
+			.reveal section img {
+				margin: 0px;
+				background: none;
+				border: none;
+				box-shadow: none;
+				max-height: 550px;
+			}
 
 			.reveal pre{
 				width:105%;
@@ -81,19 +87,27 @@
 		<script type="text/javascript" src="https://rawgit.com/Azdle/CoAPWebTools/master/static/js/dump.js"></script>
 		<script type="text/javascript" src="https://rawgit.com/Azdle/CoAPWebTools/master/static/js/webdatagram.js"></script>
 		<script type="text/javascript" src="https://rawgit.com/Azdle/CoAPWebTools/master/static/js/coap.js"></script>
+		<script type="text/javascript" src="./js/websocket.js"></script>
 		<script>
 			var PING = new Uint8Array([64,0,0,0]);
 			var WRITE = new Uint8Array([0x40, 0x01, 0x00, 0x37, 0xB2, 0x31, 0x61, 0x04, 0x74, 0x65, 0x6D, 0x70, 0x4D, 0x07, 0xA3, 0x2C, 0x85, 0xBA, 0x9D, 0xDA, 0x45, 0x82, 0x3B, 0xE4, 0x16, 0x24, 0x6C, 0xF8, 0xB4, 0x33, 0xBA, 0xA0, 0x68, 0xD7]);
-			var SETUP_WRITE = {"type":"NON","code":"POST","opts":{"UriPath":["1a","msg"],"UriQuery":["f6b2d8b26aa4a42f54eca858d509663e02a7b909"]},"payload":"No way! It worked!"}
+			var SETUP_WRITE = {"type":"NON","code":"POST","opts":{"UriPath":["1a","msg"],"UriQuery":["c6fe1d7ab419fca78cd0aa6764e70aeb37a0fc03"]},"payload":"No way! It worked!"}
 
 			<!--// Global Objects -->
+			var ws = new WebSocketSocket(
+				"m2.exosite.com",
+				80,
+				{urlBase: "wss://net-tools.herokuapp.com/wsp"});
+
 			var dumper = new Dump({
 				lineNumbers: true,
 				asciiPreview: true,
 			});
 
-			//var wd = new WebDatagramSocket("coap.exosite.com", 5683);
-			var wd = new WebDatagramSocket("coap.exosite.com", 5683, {urlBase: "wss://coap.exohack.io/wdp"});
+			var wd = new WebDatagramSocket(
+				"coap.exosite.com",
+				5683,
+				{urlBase: "wss://coap.herokuapp.com/wdp"});
 
 			var c = new Coap();
 
@@ -175,6 +189,44 @@
 				wd.send(pkt);
 			}
 
+			function httpInput(text, callback){
+				ws.onmessage = function(resp){
+					console.log(resp);
+					console.log(typeof(resp));
+
+					if (typeof(resp) !== "string") {
+						console.log("Is u8")  
+						var blob = new Blob([new Uint8Array(resp)]);
+						var f = new FileReader();
+						f.onload = function(e) {
+							console.log(e.target.result);
+							callback(e.target.result);
+						};
+						f.readAsText(blob);
+					} else {
+
+						console.log("Received: " + resp);
+						callback(resp);
+					}
+				}
+
+				text = text.trim();
+				if (text.search("\r\n\r\n") === -1) {
+					text = text + "\r\n\r\n"
+				}
+				//console.log(text)
+				console.log("Sending Something: " + text);
+				ws.send(text);
+			}
+			
+			window.addEventListener("DOMContentLoaded", function (event){
+			     setupIOPair("httpget",httpInput,appendAndScrollTextArea);
+			     setupIOPair("httppost",httpInput,appendAndScrollTextArea);
+			     setupIOPair("httplongpoll",httpInput,appendAndScrollTextArea);
+			     setupIOPair("httplongpoll2",httpInput,appendAndScrollTextArea);
+			     setupIOPair("flip", coapInputFilterCON, appendAndScrollTextArea);
+			     setupIOPair("write",coapInputAutoACK,appendAndScrollTextArea);
+			},false);
 		</script>
 	</head>
 
@@ -188,7 +240,10 @@
 					<h1>Application Protocols</h1>
 					<h3>For the Internet of Things</h3>
 					<p>
-						<small><a href="http://mkii.org">Patrick Barrett</a> / Applications Engineer<!--<a href="http://twitter.com/@zdle">@zdle</a> --></small>
+						<small><a href="http://mkii.org">Patrick Barrett</a> / Applications Engineer @ <a href="https://exosite.com">Exosite</a></small>
+					</p>
+					<p>
+						<small>These Slides: <a href="http://slides.mkii.org/esc15/">slides.mkii.org/esc15/</a></small>
 					</p>
 					<aside class="notes">
 						Hello, Me, Questions
@@ -200,29 +255,26 @@
 				<section data-background="#004477">
 					<h1>But First</h1>
 					<aside class="notes">
+						About this talk: piece by piece
 					</aside>
 				</section>
 
 				<section>
-					<h2>Who dat?</h2>
-					<dl>
-						<dt>IP</dt><dd>Internet Protocol</dd>
-						<dt>TCP</dt><dd>Transmittion Control Protocol</dd>
-						<dt>UDP</dt><dd>User Datagram Protocol</dd>
-					</dl>
+					<img src="./img/what-the-hell-is-the-internet.png" />
+				</section>
 
-					<aside class="notes">
-
-					</aside>
+				<section>
+					<h2>A Series of <span class="strike">Tubes</span> Layers</h2>
+					<img src="./img/overview.png" />
 				</section>
 
 				<section>
 					<h2>Uh... The Internet? (Protocol)</h2>
 
 					<ul>
-						<li class="fragment">The Foundation of the Internet</li>
-						<li class="fragment">Packets</li>
-						<li class="fragment">IP Addresses Live Here</li>
+						<li>The Foundation of the Internet</li>
+						<li>Packets</li>
+						<li>IP Addresses Live Here</li>
 					</ul>
 
 					<aside class="notes">
@@ -231,19 +283,24 @@
 				</section>
 
 				<section>
+					<h2>I <small>need to</small> P<small>ee</small></h2>
+					<img src="./img/ip.png" />
+				</section>
+
+				<section>
 					<h2>- -·-· ·--·</h2>
 
 					<ul>
-						<li class="fragment">Connection Establishment</li>
-						<li class="fragment">Stream Protocol<ul>
-							<li class="fragment">Handles Packetizing Data</li>
-							<li class="fragment">Data will be Delivered in Order</li>
+						<li>Connection Establishment</li>
+						<li>Application Muxing (Ports)</li>
+						<li>Stream Protocol<ul>
+							<li>Handles Packetizing Data</li>
+							<li>Data will be Delivered in Order</li>
 						</ul></li>
-						<li class="fragment">Data Will be Delivered</li>
-						<li class="fragment">Automatically Retries</li>
-						<li class="fragment">Every Bit Will be Exactly as it was Sent</li>
-						<li class="fragment">Flow and Congestion Control</li>
-						<li class="fragment">Port Numbers</li>
+						<li>Data Will be Delivered</li>
+						<li>Automatically Retries</li>
+						<li>Every Bit Will be Exactly as it was Sent</li>
+						<li>Flow and Congestion Control</li>
 					</ul>
 
 					<aside class="notes">
@@ -254,10 +311,16 @@
 				</section>
 
 				<section>
+					<h2>Main Screen Turn On</h2>
+					<img src="./img/tcp.png" />
+				</section>
+
+				<section>
 					<h2>A Friend of the Users</h2>
 
-					<ul class="fragment">
+					<ul>
 						<li class="strike">Connection Establishment</li>
+						<li>Application Muxing (Ports)</li>
 						<li class="strike">Stream Protocol<ul>
 							<li class="strike">Handles Packetizing Data</li>
 							<li class="strike">Data will be Delivered in Order</li>
@@ -266,7 +329,6 @@
 						<li class="strike">Automatically Retries</li>
 						<li>Every Bit Will be Exactly as it was Sent</li>
 						<li class="strike">Flow and Congestion Control</li>
-						<li>Port Numbers</li>
 					</ul>
 
 					<aside class="notes">
@@ -275,27 +337,19 @@
 				</section>
 
 				<section>
-					<h2>Bored Yet?</h2>
-					<dl class="fragment">
-						<dt>Client-Server :: Request-Response</dt><dd>The Architecture of the Internet</dd>
-						<dt>NAT</dt><dd>Network Address Translation</dd>
-						<dt>Firewall</dt><dd>A Wall of Fire (Duh)</dd>
-					</dl>
-
-					<aside class="notes">
-
-					</aside>
+					<h2>I'd Tell You a Joke...</h2>
+					<img src="./img/udp.png" />
 				</section>
 
 				<section>
 					<h2>Gimme! - Okay, here.</h2>
 
 					<ol>
-						<li class="fragment">Something Happens</li>
-						<li class="fragment">Client Asks Server for Resource</li>
-						<li class="fragment">Server Processes</li>
-						<li class="fragment">Server Sends Resource to Client</li>
-						<li class="fragment">GOTO 1</li>
+						<li>Something Happens</li>
+						<li>Client Requests a Resource</li>
+						<li>Server Processes Request</li>
+						<li>Server Responds with Resource</li>
+						<li>GOTO 1</li>
 					</ol>
 
 					<aside class="notes">
@@ -304,21 +358,36 @@
 				</section>
 
 				<section>
+					<h2>These Titles are a lot of Effort</h2>
+					<img src="./img/request-response.png" />
+				</section>
+
+				<section>
 					<h2>Hold Out Your Hand for a Stamp</h2>
 
 					<ul>
-						<li class="fragment">Firewall ≈ NAT</li>
-						<li class="fragment">Connections Are Stateful<ul>
-							<li class="fragment">Even for UDP</li>
+						<li>Firewall ≈ NAT</li>
+						<li>Connections Are Stateful<ul>
+							<li>Even for UDP</li>
 						</ul></li>
-						<li class="fragment">Packets Go Out, But they Don't Come In<ul>
-							<li class="fragment">Unless One of their Friends Just Left</li>
+						<li>Packets Go Out, But they Don't Come In<ul>
+							<li>Unless One of their Friends Just Left</li>
 						</ul></li>
 					</ul>
 
 					<aside class="notes">
 						because
 					</aside>
+				</section>
+
+				<section>
+					<h2>Oh, God! It's a Fire<small>wall</small></h2>
+					<img src="./img/request-response-with-firewall.png" />
+				</section>
+
+				<section>
+					<h2>A Burning Ring of Fire</h2>
+					<img src="./img/firewall-block.png" />
 				</section>
 
 				<section>
@@ -339,13 +408,13 @@
 					<h2>Better than a Wigwam</h2>
 
 					<ul>
-						<li class="fragment">TCP</li>
-						<li class="fragment">Client-Server</li>
-						<li class="fragment">Request-Response</li>
-						<li class="fragment">Text-Based<ul>
-							<li class="fragment">Easy to Read</li>
+						<li>TCP</li>
+						<li>Client-Server</li>
+						<li>Request-Response</li>
+						<li>Text-Based<ul>
+							<li>Easy to Read</li>
 						</ul></li>
-						<li class="fragment">Extensible</li>
+						<li>Extensible</li>
 					</ul>
 
 					<aside class="notes">
@@ -354,98 +423,189 @@
 				</section>
 
 				<section>
-					<h2>Get it? It rhymes with TiPi</h2>
-					<pre><code data-trim class="http request">
+					<section>
+						<h2>Get it? It rhymes with TiPi</h2>
+						<input type=button name="doit" id="httpget-sub" value="Do It!" onclick=""/>
+						<input type=button name="clear" id="httpget-clr" value="Clear" onclick=""/>
+						<div>
+							<textarea id="httpget-request" class="left-half hljs">
+GET /api:v1/stack/alias?msg HTTP/1.1
+Host: m2.exosite.com
+X-Exosite-CIK: c6fe1d7ab419fca78cd0aa6764e70aeb37a0fc03
+Accept: application/x-www-form-urlencoded; charset=utf-8
+
+&nbsp;
+						</textarea>
+							<textarea id="httpget-response" class="right-half hljs"></textarea>
+						</div>
+
+						<aside class="notes">
+						</aside>
+					</section>
+
+					<section>
+						<h2>Get it? It rhymes with TiPi</h2>
+						<pre><code data-trim class="http request">
+GET /api:v1/stack/alias?msg HTTP/1.1
+Host: m2.exosite.com
+X-Exosite-CIK: c6fe1d7ab419fca78cd0aa6764e70aeb37a0fc03
+Accept: application/x-www-form-urlencoded; charset=utf-8
+
+&nbsp;
+						</code></pre>
+						<pre><code data-trim class="http response">
+HTTP/1.1 200 OK
+Date: Wed, 04 Nov 2015 01:02:31 GMT
+Content-Length: 6
+Server: nginx
+
+msg=yo
+						</code></pre>
+						<aside class="notes"></aside>
+					</section>
+				</section>
+
+				<section>
+					<section>
+						<h2>Post No Bills</h2>
+						<input type=button name="doit" id="httppost-sub" value="Do It!" onclick=""/>
+						<input type=button name="clear" id="httppost-clr" value="Clear" onclick=""/>
+						<div>
+							<textarea id="httppost-request" class="left-half hljs">
 POST /api:v1/stack/alias HTTP/1.1
 Host: m2.exosite.com
-X-Exosite-CIK: f6b2d8b26aa4a42f54eca858d509663e02a7b909
+X-Exosite-CIK: c6fe1d7ab419fca78cd0aa6764e70aeb37a0fc03
 Content-Type: application/x-www-form-urlencoded; charset=utf-8
 Content-Length: 7
 
-temp=26
-					</code></pre>
-					<pre><code data-trim class="http response">
+msg=hey
+						</textarea>
+							<textarea id="httppost-response" class="right-half hljs"></textarea>
+						</div>
+
+						<aside class="notes">
+						</aside>
+					</section>
+
+					<section>
+						<h2>Post no Bills</h2>
+						<pre><code data-trim class="http request">
+POST /api:v1/stack/alias HTTP/1.1
+Host: m2.exosite.com
+X-Exosite-CIK: c6fe1d7ab419fca78cd0aa6764e70aeb37a0fc03
+Content-Type: application/x-www-form-urlencoded; charset=utf-8
+Content-Length: 7
+
+msg=hey
+						</code></pre>
+						<pre><code data-trim class="http response">
 HTTP/1.1 204 No Content
-Date: Thu, 05 Mar 2015 18:00:44 GMT
+Date: Wed, 04 Nov 2015 00:11:18 GMT
 Content-Length: 0
 Server: nginx
 
 &nbsp;
-					</code></pre>
-					<aside class="notes"></aside>
+						</code></pre>
+						<aside class="notes">
+						</aside>
+					</section>
 				</section>
 
 				<section>
-					<h2>GET Back you Monster</h2>
-					<pre><code data-trim class="http request">
-GET /api:v1/stack/alias?temp HTTP/1.1
+					<section>
+						<h2>Don't Call it a Hack</h2>
+						<input type=button name="doit" id="httplongpoll-sub" value="Do It!" onclick=""/>
+						<input type=button name="clear" id="httplongpoll-clr" value="Clear" onclick=""/>
+						<div>
+							<textarea id="httplongpoll-request" class="left-half hljs">
+GET /api:v1/stack/alias?msg HTTP/1.1
 Host: m2.exosite.com
-X-Exosite-CIK: f6b2d8b26aa4a42f54eca858d509663e02a7b909
+X-Exosite-CIK: c6fe1d7ab419fca78cd0aa6764e70aeb37a0fc03
 Accept: application/x-www-form-urlencoded; charset=utf-8
+Request-Timeout: 300000
 
 &nbsp;
-					</code></pre>
-					<pre><code data-trim class="http response">
-HTTP/1.1 200 OK
-Date: Tue, 25 Aug 2015 05:43:42 GMT
-Server: nginx
-Connection: Close
-Content-Length: 7
+						</textarea>
+							<textarea id="httplongpoll-response" class="right-half hljs"></textarea>
+						</div>
 
-temp=26
-					</code></pre>
-					<aside class="notes">
-					</aside>
-				</section>
+						<aside class="notes">
+						</aside>
+					</section>
 
-				<section>
-					<h2>Don't Call it a Hack</h2>
-					<pre><code data-trim class="http request">
-GET /api:v1/stack/alias?temp HTTP/1.1
+					<section>
+						<h2>Don't Call it a Hack</h2>
+						<pre><code data-trim class="http request">
+GET /api:v1/stack/alias?msg HTTP/1.1
 Host: m2.exosite.com
-X-Exosite-CIK: f6b2d8b26aa4a42f54eca858d509663e02a7b909
+X-Exosite-CIK: c6fe1d7ab419fca78cd0aa6764e70aeb37a0fc03
 Accept: application/x-www-form-urlencoded; charset=utf-8
 Request-Timeout: 300000
 If-Modified-Since: 1440481217
 
 &nbsp;
-					</code></pre>
-					<pre><code data-trim class="http response">
+						</code></pre>
+						<pre><code data-trim class="http response">
 HTTP/1.1 200 OK
 Date: Tue, 25 Aug 2015 05:43:42 GMT
 Server: nginx
 Connection: Close
-Content-Length: 7
+Content-Length: 6
 Last-Modified: Tue, 25 Aug 2015 05:43:42 GMT
 
-temp=26
-					</code></pre>
-					<aside class="notes">
-					</aside>
+msg=hey
+						</code></pre>
+						<aside class="notes">
+						</aside>
+					</section>
 				</section>
 
 				<section>
-					<h2>Surely OP Will Deliver</h2>
-					<pre><code data-trim class="http request">
-GET /api:v1/stack/alias?temp HTTP/1.1
+					<section>
+						<h2>Surely OP Will Deliver</h2>
+						<input type=button name="doit" id="httplongpoll2-sub" value="Do It!" onclick=""/>
+						<input type=button name="clear" id="httplongpoll2-clr" value="Clear" onclick=""/>
+						<div>
+							<textarea id="httplongpoll2-request" class="left-half hljs">
+GET /api:v1/stack/alias?msg HTTP/1.1
 Host: m2.exosite.com
-X-Exosite-CIK: f6b2d8b26aa4a42f54eca858d509663e02a7b909
+X-Exosite-CIK: c6fe1d7ab419fca78cd0aa6764e70aeb37a0fc03
+Accept: application/x-www-form-urlencoded; charset=utf-8
+Request-Timeout: 2000
+
+
+&nbsp;
+						</textarea>
+							<textarea id="httplongpoll2-response" class="right-half hljs"></textarea>
+						</div>
+
+						<aside class="notes">
+						</aside>
+					</section>
+
+					<section>
+						<h2>Surely OP Will Deliver</h2>
+						<pre><code data-trim class="http request">
+GET /api:v1/stack/alias?msg HTTP/1.1
+Host: m2.exosite.com
+X-Exosite-CIK: c6fe1d7ab419fca78cd0aa6764e70aeb37a0fc03
 Accept: application/x-www-form-urlencoded; charset=utf-8
 Request-Timeout: 300000
 If-Modified-Since: 1440481217
 
 &nbsp;
-					</code></pre>
-					<pre><code data-trim class="http response">
+						</code></pre>
+						<pre><code data-trim class="http response">
 HTTP/1.1 304 Not Modified
 Date: Tue, 25 Aug 2015 05:45:17 GMT
 Server: nginx
 Connection: Close
 
 &nbsp;
-					</code></pre>
-					<aside class="notes">
-					</aside>
+						</code></pre>
+						<aside class="notes">
+						</aside>
+					</section>
 				</section>
 
 				<section>
@@ -453,11 +613,11 @@ Connection: Close
 					<pre><code data-trim class="http request">
 POST /api:v1/stack/alias HTTP/1.1
 Host: m2.exosite.com
-X-Exosite-CIK: f6b2d8b26aa4a42f54eca858d509663e02a7b909
+X-Exosite-CIK: c6fe1d7ab419fca78cd0aa6764e70aeb37a0fc03
 Content-Type: application/x-www-form-urlencoded; charset=utf-8
 Content-Length: 7
 
-temp=26
+msg=hey
 					</code></pre>
 					<pre><code data-trim class="http response">
 HTTP/1.1 204 No Content
@@ -491,7 +651,7 @@ Server: nginx
 00000090: 6F 72 6D 2D 75 72 6C 65  6E 63 6F 64 65 64 3B 20  orm-urlencoded;
 000000A0: 63 68 61 72 73 65 74 3D  75 74 66 2D 38 0A 43 6F  charset=utf-8.Co
 000000B0: 6E 74 65 6E 74 2D 4C 65  6E 67 74 68 3A 20 37 0A  ntent-Length: 7.
-000000C0: 0A 74 65 6D 70 3D 32 36                           .temp=26
+000000C0: 0A 74 65 6D 70 3D 32 36                           .msg=hey
 					</code></pre>
 					<pre><code data-trim id="worse-response">
 00000000: 48 54 54 50 2f 31 2e 31 20 32 30 34 20 4e 6f 20  HTTP.....2.4.No.
@@ -503,7 +663,7 @@ Server: nginx
 					</code></pre>
 
 					<aside class="notes">
-						That's a lot of bytes when all we're trying to say is "temp=26".
+						That's a lot of bytes when all we're trying to say is "msg=hey".
 
 						So, how do we make this shorter? Well, we could remove some of the headers or make our own aliases for them. Maybe take this Content-Type header and say that our Content-Type is "urlenc". It's a lot shorter, but it's also not going to be understood by any software that wasn't written specfically for our APIs. Not good.
 
@@ -511,39 +671,6 @@ Server: nginx
 					</aside>
 				</section>
 
-<!--
-				<section class="worse">
-					<h2>It's Worse than it Looks</h2>
-					<pre><code data-trim class="request coap" id="worse-request">
-00000000: 40 02 00 37 B2 31 61 04  74 65 6D 70 4D 07 A3 2C  @..7.1a.tempM..,
-00000010: 85 BA 9D DA 45 82 3B E4  16 24 6C F8 B4 33 BA A0  ....E.;..$l..3..
-00000020: 68 D7 FF 32 36                                    h..26
-					</code></pre>
-					<pre><code data-trim class="request http" id="worse-response">
-00000000: 50 4F 53 54 20 2F 61 70  69 3A 76 31 2F 73 74 61  POST /api:v1/sta
-00000010: 63 6B 2F 61 6C 69 61 73  20 48 54 54 50 2F 31 2E  ck/alias HTTP/1.
-00000020: 31 0A 48 6F 73 74 3A 20  6D 32 2E 65 78 6F 73 69  1.Host: m2.exosi
-00000030: 74 65 2E 63 6F 6D 0A 58  2D 45 78 6F 73 69 74 65  te.com.X-Exosite
-00000040: 2D 43 49 4B 3A 20 61 33  32 63 38 35 62 61 39 64  -CIK: a32c85ba9d
-00000050: 64 61 34 35 38 32 33 62  65 34 31 36 32 34 36 63  da45823be416246c
-00000060: 66 38 62 34 33 33 62 61  61 30 36 38 64 37 0A 43  f8b433baa068d7.C
-00000070: 6F 6E 74 65 6E 74 2D 54  79 70 65 3A 20 61 70 70  ontent-Type: app
-00000080: 6C 69 63 61 74 69 6F 6E  2F 78 2D 77 77 77 2D 66  lication/x-www-f
-00000090: 6F 72 6D 2D 75 72 6C 65  6E 63 6F 64 65 64 3B 20  orm-urlencoded;
-000000A0: 63 68 61 72 73 65 74 3D  75 74 66 2D 38 0A 43 6F  charset=utf-8.Co
-000000B0: 6E 74 65 6E 74 2D 4C 65  6E 67 74 68 3A 20 37 0A  ntent-Length: 7.
-000000C0: 0A 74 65 6D 70 3D 32 36                           .temp=26
-					</code></pre>
-
-					<aside class="notes">
-						That's a lot of bytes when all we're trying to say is "temp=26".
-
-						So, how do we make this shorter? Well, we could remove some of the headers or make our own aliases for them. Maybe take this Content-Type header and say that our Content-Type is "urlenc". It's a lot shorter, but it's also not going to be understood by any software that wasn't written specfically for our APIs. Not good.
-
-						So, what's a presenter to do with this obviously leading question? Why show you something much shorter and completely incomprehensible, of course.
-					</aside>
-				</section>
--->
 				<section>
 					<h2>Yo!</h2>
 					<pre><code data-trim class="request coap" id="yo-request">
@@ -556,7 +683,7 @@ Server: nginx
 					</code></pre>
 
 					<aside class="notes">
-						Looking over at the little preview window, it's really not quite as clear what's going on just from looking. We can see somethings in there. Here there's "temp", there there's a "26". Oh, right we were trying to tell the server that temp=26 in the last slide, maybe that's what we're still doing.
+						Looking over at the little preview window, it's really not quite as clear what's going on just from looking. We can see somethings in there. Here there's "temp", there there's a "26". Oh, right we were trying to tell the server that msg=hey in the last slide, maybe that's what we're still doing.
 
 						Yup. This packet contains all the same information and is doing the same thing that the last one did. But this one is using CoAP instead of HTTP.
 
@@ -600,27 +727,27 @@ Server: nginx
 
 				<section>
 					<h2>Wait, what‽</h2>
-					<p class="fragment">
-						Like HTTP<span class="fragment">, but...</span>
+					<p>
+						Like HTTP<span>, but...</span>
 					</p>
 					<ul>
-						<li class="fragment">UDP</li>
-						<li class="fragment">Client-Server<ul>
-							<li class="fragment">And More</li>
+						<li>UDP</li>
+						<li>Client-Server<ul>
+							<li>And More</li>
 						</ul></li>
-						<li class="fragment">Request-Response<ul>
-							<li class="fragment">And More</li>
+						<li>Request-Response<ul>
+							<li>And More</li>
 						</ul></li>
-						<li class="fragment">Binary (ie. Small)<ul>
-							<li class="fragment">Really Easy to Parse</li>
+						<li>Binary (ie. Small)<ul>
+							<li>Really Easy to Parse</li>
 						</ul></li>
-						<li class="fragment">Well-Defined <sup>*</sup></li>
-						<li class="fragment">Extensible</li>
+						<li>Well-Defined <sup>*</sup></li>
+						<li>Extensible</li>
 						<!--
-						<li class="fragment">Real-Time</li>
-						<li class="fragment">Supports Local &amp; Multicast</li>
-						<li class="fragment">Discovery</li>
-						<li class="fragment">PHY Independent</li>
+						<li>Real-Time</li>
+						<li>Supports Local &amp; Multicast</li>
+						<li>Discovery</li>
+						<li>PHY Independent</li>
 						-->
 					</ul>
 
@@ -662,7 +789,7 @@ Server: nginx
 					</code></pre>
 
 					<aside class="notes">
-						Looking over at the little preview window, it's really not quite as clear what's going on just from looking. We can see somethings in there. Here there's "temp", there there's a "26". Oh, right we were trying to tell the server that temp=26 in the last slide, maybe that's what we're still doing.
+						Looking over at the little preview window, it's really not quite as clear what's going on just from looking. We can see somethings in there. Here there's "temp", there there's a "26". Oh, right we were trying to tell the server that msg=hey in the last slide, maybe that's what we're still doing.
 
 						Yup. This packet contains all the same information and is doing the same thing that the last one did. But this one is using CoAP instead of HTTP.
 
@@ -689,7 +816,7 @@ Server: nginx
       "temp"
     ],
     "UriQuery": [
-      "f6b2d8b26aa4a42f54eca858d509663e02a7b909"
+      "c6fe1d7ab419fca78cd0aa6764e70aeb37a0fc03"
     ]
   },
   "payload": "26"
@@ -725,7 +852,7 @@ Server: nginx
       "msg"
     ],
     "UriQuery": [
-      "f6b2d8b26aa4a42f54eca858d509663e02a7b909"
+      "c6fe1d7ab419fca78cd0aa6764e70aeb37a0fc03"
     ]
   }
 }</textarea>
@@ -734,11 +861,6 @@ Server: nginx
 
 					<aside class="notes">
 					</aside>
-					<script type="text/javascript">
-						setupIOPair("flip",
-							coapInputFilterCON,
-							appendAndScrollTextArea);
-					</script>
 				</section>
 
 				<section>
@@ -758,7 +880,7 @@ Server: nginx
       "count"
     ],
     "UriQuery": [
-      "f6b2d8b26aa4a42f54eca858d509663e02a7b909"
+      "c6fe1d7ab419fca78cd0aa6764e70aeb37a0fc03"
     ],
     "Observe": 0
   }
@@ -768,19 +890,16 @@ Server: nginx
 
 					<aside class="notes">
 					</aside>
-					<script type="text/javascript">
-						setupIOPair("write",coapInputAutoACK,appendAndScrollTextArea);
-					</script>
 				</section>
 
 				<section  data-background="#771818">
 					<h2>Don't Drink the Kool-Aid<h2>
 					<ul>
-						<li class="fragment">It's New</li>
-						<li class="fragment">It's Still Evolving</li>
-						<li class="fragment">DTLS</li>
-						<li class="fragment">More Complicated</li>
-						<li class="fragment">Needs More Tooling</li>
+						<li>It's New</li>
+						<li>It's Still Evolving</li>
+						<li>DTLS</li>
+						<li>More Complicated</li>
+						<li>Needs More Tooling</li>
 					</ul>
 
 					<aside class="notes">
@@ -790,10 +909,10 @@ Server: nginx
 				<section>
 					<h2>Fight!<h2>
 					<ul>
-						<li class="fragment">MQTT</li>
-						<li class="fragment">XMPP</li>
-						<li class="fragment"></li>
-						<li class="fragment"></li>
+						<li>MQTT</li>
+						<li>XMPP</li>
+						<li>Websockets</li>
+						<li>????</li>
 					</ul>
 
 					<aside class="notes">
